@@ -1,0 +1,16 @@
+withD/outputs/logs/
+withD/outputs/sbatch/
+withD/outputs/T5models/
+withD/outputs_woC/logs/
+dataset/
+withD/outputs_woC/sbatch/
+withD/outputs_woC/T5models/
+withoutD/outputs/logs/
+withoutD/outputs/sbatch/
+withoutD/outputs/T5models/
+withoutD/outputs_woC/logs/
+withoutD/outputs_woC/sbatch/
+withoutD/outputs_woC/T5models/
+*.ckpt
+*.out
+*.json
