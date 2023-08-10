@@ -42,7 +42,7 @@ from make_logger import CreateLogger
 
 import torch.distributed as dist
 import torch.multiprocessing as mp
-
+import pickle
 import warnings
 # warnings.filterwarnings("ignore")
 
@@ -63,9 +63,9 @@ class DialT5(nn.Module):
         self.model.resize_token_embeddings(self.args.vocab_size)
         self.writer = SummaryWriter(log_dir=f'{self.args.output_dir}/tensorboard')
         self.args.max_len = min(self.args.max_len, self.model.config.n_positions)  # No generation bigger than model size
-        self.bos_token, self.eos_token, self.usr_token, self.sys_token, self.pad_token, self.emo_token = SPECIAL_TOKENS
-        self.bos_id, self.eos_id, self.usr_id, self.sys_id, self.pad_id, self.emo_id = self.tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
-        self.pos_id, self.neg_id = self.tokenizer.convert_tokens_to_ids(['pos', 'neg'])
+        self.bos_token, self.eos_token, self.usr_token, self.sys_token, self.pad_token, self.emo_token, self.pos_token, self.neg_token = SPECIAL_TOKENS
+        self.bos_id, self.eos_id, self.usr_id, self.sys_id, self.pad_id, self.emo_id, self.pos_id, self.neg_id = self.tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
+        
         logger.info('***** Loading the optimizer ******')
         self.optim = torch.optim.AdamW(self.model.parameters(), lr=self.args.lr)
         self.best_loss = sys.float_info.max
@@ -73,8 +73,16 @@ class DialT5(nn.Module):
 
         logger.info('***** Loading train & valid dataset *****')
         if self.args.mode == 'train':
-            train_set = get_dataset(tokenizer=self.tokenizer, type_path="train", args=self.args)
-            valid_set = get_dataset(tokenizer=self.tokenizer, type_path="valid", args=self.args)
+            if os.path.isfile(f"{self.args.data_dir}/train_ids.pickle"):
+                with open(f"{self.args.data_dir}/train_ids.pickle", 'rb') as f:
+                    train_set = pickle.load(f)
+            else:
+                train_set = get_dataset(tokenizer=self.tokenizer, type_path="train", args=self.args)
+            if os.path.isfile(f"{self.args.data_dir}/valid_ids.pickle"):
+                with open(f"{self.args.data_dir}/valid_ids.pickle", 'rb') as f:
+                    valid_set = pickle.load(f)
+            else:
+                valid_set = get_dataset(tokenizer=self.tokenizer, type_path="valid", args=self.args)
 
             self.train_loader = DataLoader(train_set, batch_size=self.args.train_batch_size, shuffle=True)
             self.valid_loader = DataLoader(valid_set, batch_size=self.args.eval_batch_size,  shuffle=False)
@@ -320,8 +328,8 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--max_len', type=int, default=512)
     parser.add_argument('--max_output_length', type=int, default=128)
-    parser.add_argument('--train_batch_size', type=int, default=16)
-    parser.add_argument('--eval_batch_size', type=int, default=8)
+    parser.add_argument('--train_batch_size', type=int, default=32)
+    parser.add_argument('--eval_batch_size', type=int, default=16)
     parser.add_argument('--num_train_epochs', type=int, default=20)
     parser.add_argument('--gradient_accumulation_steps', type=int, default=16)
     parser.add_argument('--lr', type=float, default=1e-3)

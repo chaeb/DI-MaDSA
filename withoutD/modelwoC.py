@@ -35,7 +35,7 @@ from transformers import (
 )
 import pdb
 from constants import SPECIAL_TOKENS, ATTR_TO_SPECIAL_TOKEN, MODEL_INPUTS, PADDED_INPUTS, PHQ_TOKENS
-from load_data import get_dataset
+from load_datawoC import get_dataset
 from utils import call_questions, calculate_similarity
 
 from make_logger import CreateLogger
@@ -45,7 +45,8 @@ import torch.multiprocessing as mp
 
 import warnings
 # warnings.filterwarnings("ignore")
-
+import gzip
+import pickle
 
 class DialT5(nn.Module):
     def __init__(self, args, logger):
@@ -63,9 +64,8 @@ class DialT5(nn.Module):
         self.model.resize_token_embeddings(self.args.vocab_size)
         self.writer = SummaryWriter(log_dir=f'{self.args.output_dir}/tensorboard')
         self.args.max_len = min(self.args.max_len, self.model.config.n_positions)  # No generation bigger than model size
-        self.bos_token, self.eos_token, self.usr_token, self.sys_token, self.pad_token, self.emo_token = SPECIAL_TOKENS
-        self.bos_id, self.eos_id, self.usr_id, self.sys_id, self.pad_id, self.emo_id = self.tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
-        self.pos_id, self.neg_id = self.tokenizer.convert_tokens_to_ids(['pos', 'neg'])
+        self.bos_token, self.eos_token, self.usr_token, self.sys_token, self.pad_token, self.emo_token, self.pos_token, self.neg_token = SPECIAL_TOKENS
+        self.bos_id, self.eos_id, self.usr_id, self.sys_id, self.pad_id, self.emo_id, self.pos_id, self.neg_id = self.tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
         logger.info('***** Loading the optimizer ******')
         self.optim = torch.optim.AdamW(self.model.parameters(), lr=self.args.lr)
         self.best_loss = sys.float_info.max
@@ -73,9 +73,16 @@ class DialT5(nn.Module):
 
         logger.info('***** Loading train & valid dataset *****')
         if self.args.mode == 'train':
-            train_set = get_dataset(tokenizer=self.tokenizer, type_path="train", args=self.args)
-            valid_set = get_dataset(tokenizer=self.tokenizer, type_path="valid", args=self.args)
-
+            if os.path.isfile(f"{self.args.data_dir}/train_ids_woC.pickle"):
+                with open(f"{self.args.data_dir}/train_ids_woC.pickle", 'rb') as f:
+                    train_set = gzip.pickle.load(f)
+            else:
+                train_set = get_dataset(tokenizer=self.tokenizer, type_path="train", args=self.args)
+            if os.path.isfile(f"{self.args.data_dir}/valid_ids_woC.pickle"):
+                with open(f"{self.args.data_dir}/valid_ids.pickle", 'rb') as f:
+                    valid_set = gzip.pickle.load(f)
+            else:
+                valid_set = get_dataset(tokenizer=self.tokenizer, type_path="valid", args=self.args)
             self.train_loader = DataLoader(train_set, batch_size=self.args.train_batch_size, shuffle=True)
             self.valid_loader = DataLoader(valid_set, batch_size=self.args.eval_batch_size,  shuffle=False)
             

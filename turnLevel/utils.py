@@ -15,14 +15,13 @@ def calculate_similarity(text1,text2):
     return cosine_similarity(text1, text2)[0][0]
 
 
-
 import numpy as np
 import torch
 from copy import deepcopy
 import torch.nn as nn
 
-score_mapping = {0: 'interest', 1: 'depressed', 2: 'sleep', 3: 'tired', 4:'appetite', 5: 'failure', 6: 'concentrating', 7: 'moving', 8: 'total'}
-reverse_mapping = {'interest': 0, 'depressed': 1, 'sleep': 2, 'tired': 3, 'appetite': 4, 'failure': 5, 'concentrating': 6, 'moving': 7, 'total': 8}
+score_mapping = {0: 'interest', 1: 'depressed', 2: 'sleep', 3: 'tired', 4:'appetite', 5: 'failure', 6: 'concetrating', 7: 'moving', 8: 'total'}
+reverse_mapping = {'interest': 0, 'depressed': 1, 'sleep': 2, 'tired': 3, 'appetite': 4, 'failure': 5, 'concetrating': 6, 'moving': 7, 'total': 8}
 
 def get_score_vector_positions():
     return deepcopy(reverse_mapping)
@@ -182,7 +181,23 @@ def pad_hierarchical_text_sequences(sequences, embed_dim, max_len, max_sentnum):
     for i, sentence in enumerate(sequences):
         X[i] = sentence
     return X
+# def pad_hierarchical_text_sequences(index_sequences, max_sentnum, max_sentlen):
+#     X = np.empty([len(index_sequences), max_sentnum, max_sentlen], dtype=np.int32)
 
+#     for i in range(len(index_sequences)):
+#         sequence_ids = index_sequences[i]
+#         num = len(sequence_ids)
+
+#         for j in range(num):
+#             word_ids = sequence_ids[j]
+#             length = len(word_ids)
+#             for k in range(length):
+#                 wid = word_ids[k]
+#                 X[i, j, k] = wid
+#             X[i, j, length:] = 0
+
+#         X[i, num:, :] = 0
+#     return X
 
 def masked_loss_function(y_true, y_pred):
     mask_value = -1

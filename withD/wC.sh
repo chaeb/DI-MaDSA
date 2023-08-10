@@ -1,0 +1,1 @@
+accelerate launch model.py

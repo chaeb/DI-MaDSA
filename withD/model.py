@@ -37,7 +37,7 @@ import pdb
 from constants import SPECIAL_TOKENS, ATTR_TO_SPECIAL_TOKEN, MODEL_INPUTS, PADDED_INPUTS, PHQ_TOKENS
 from load_data import get_dataset
 from utils import call_questions, calculate_similarity
-
+import pickle
 from make_logger import CreateLogger
 
 import torch.distributed as dist
@@ -63,9 +63,8 @@ class DialT5(nn.Module):
         self.model.resize_token_embeddings(self.args.vocab_size)
         self.writer = SummaryWriter(log_dir=f'{self.args.output_dir}/tensorboard')
         self.args.max_len = min(self.args.max_len, self.model.config.n_positions)  # No generation bigger than model size
-        self.bos_token, self.eos_token, self.usr_token, self.sys_token, self.pad_token, self.emo_token = SPECIAL_TOKENS
-        self.bos_id, self.eos_id, self.usr_id, self.sys_id, self.pad_id, self.emo_id = self.tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
-        self.pos_id, self.neg_id = self.tokenizer.convert_tokens_to_ids(['pos', 'neg'])
+        self.bos_token, self.eos_token, self.usr_token, self.sys_token, self.pad_token, self.emo_token, self.pos_token, self.neg_token = SPECIAL_TOKENS
+        self.bos_id, self.eos_id, self.usr_id, self.sys_id, self.pad_id, self.emo_id, self.pos_id, self.neg_id = self.tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
         logger.info('***** Loading the optimizer ******')
         self.optim = torch.optim.AdamW(self.model.parameters(), lr=self.args.lr)
         self.best_loss = sys.float_info.max
@@ -73,8 +72,17 @@ class DialT5(nn.Module):
 
         logger.info('***** Loading train & valid dataset *****')
         if self.args.mode == 'train':
-            train_set = get_dataset(tokenizer=self.tokenizer, type_path="train", args=self.args)
-            valid_set = get_dataset(tokenizer=self.tokenizer, type_path="valid", args=self.args)
+            if os.path.isfile(f"{self.args.data_dir}/train_ids.pickle"):
+                with open(f"{self.args.data_dir}/train_ids.pickle", 'rb') as f:
+                    train_set = pickle.load(f)
+            else:
+                train_set = get_dataset(tokenizer=self.tokenizer, type_path="train", args=self.args)
+            if os.path.isfile(f"{self.args.data_dir}/valid_ids.pickle"):
+                with open(f"{self.args.data_dir}/valid_ids.pickle", 'rb') as f:
+                    valid_set = pickle.load(f)
+            else:
+                valid_set = get_dataset(tokenizer=self.tokenizer, type_path="valid", args=self.args)
+            
 
             self.train_loader = DataLoader(train_set, batch_size=self.args.train_batch_size, shuffle=True)
             self.valid_loader = DataLoader(valid_set, batch_size=self.args.eval_batch_size,  shuffle=False)
@@ -134,7 +142,10 @@ class DialT5(nn.Module):
     
     def get_embedding(self, text):
         ids = self.tokenizer.encode_plus([text], return_tensors = 'pt', padding = 'max_length')
-        output = self.model.encoder(ids['input_ids'].to('cuda'), attention_mask=ids['attention_mask'].to('cuda')).last_hidden_state.mean(dim=-1)
+        try:
+            output = self.model.encoder(ids['input_ids'].to('cuda'), attention_mask=ids['attention_mask'].to('cuda')).last_hidden_state.mean(dim=-1)
+        except:
+            output = self.model.module.encoder(ids['input_ids'].to('cuda'), attention_mask=ids['attention_mask'].to('cuda')).last_hidden_state.mean(dim=-1)
         return output.detach().cpu().numpy()
         
     def running_train(self):
@@ -169,8 +180,12 @@ class DialT5(nn.Module):
                         is_ids = False
                         best_sim = 0
                         questions = call_questions()
-                        label_embd = self.model.encoder(labels[i][2:].unsqueeze(0), attention_mask=target_mask[i][2:].unsqueeze(0)).last_hidden_state.mean(dim=-1).detach().cpu().numpy()
-                        input_embd = self.model.encoder(input_ids[i].unsqueeze(0), attention_mask=source_mask[i].unsqueeze(0)).last_hidden_state.mean(dim=-1).detach().cpu().numpy()
+                        try:
+                            label_embd = self.model.encoder(labels[i].unsqueeze(0), attention_mask=target_mask[i].unsqueeze(0)).last_hidden_state.mean(dim=-1).detach().cpu().numpy()
+                            input_embd = self.model.encoder(input_ids[i].unsqueeze(0), attention_mask=source_mask[i].unsqueeze(0)).last_hidden_state.mean(dim=-1).detach().cpu().numpy()
+                        except:
+                            label_embd = self.model.module.encoder(labels[i].unsqueeze(0), attention_mask=target_mask[i].unsqueeze(0)).last_hidden_state.mean(dim=-1).detach().cpu().numpy()
+                            input_embd = self.model.module.encoder(input_ids[i].unsqueeze(0), attention_mask=source_mask[i].unsqueeze(0)).last_hidden_state.mean(dim=-1).detach().cpu().numpy()
                         sim = calculate_similarity(label_embd, input_embd)
                         if sim > best_sim:
                             best_sim = sim
@@ -387,8 +402,8 @@ if __name__ == '__main__':
 
     args.local_rank = [i for i in range(args.n_gpus)]
     args.num_workers = NGPU
-    args.train_batch_size = int(args.train_batch_size / args.n_gpus)
-    args.eval_batch_size = int(args.eval_batch_size / args.n_gpus)
+    # args.train_batch_size = int(args.train_batch_size / args.n_gpus)
+    # args.eval_batch_size = int(args.eval_batch_size / args.n_gpus)
     args.gradient_accumulation_steps = int(args.gradient_accumulation_steps / args.n_gpus)
     args.lr = args.lr * args.n_gpus
 
