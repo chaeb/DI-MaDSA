@@ -1,6 +1,6 @@
-# DI-MaDSA
+# MaDSA
 
-This repository is the implementation of the  `DI-MaDSA: Dialogue-inductive Multi-aspect Depression Severity Assessment`. 
+This repository is the implementation of the  `MaDSA: Multi-aspect Depression Severity Assessment via Inductive Dialogue System`. 
 
 
 
@@ -13,5 +13,3 @@ pip install -r requirements.txt
 ```
 
 
-
-The code will be released when the paper is accepted.
